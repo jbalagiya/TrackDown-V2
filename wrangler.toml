@@ -1,4 +1,7 @@
 
+name = "trackdown-v2"
+compatibility_date = "2025-08-01"
+main = "worker.js"
 
 [vars]
 TELEGRAM_BOT_TOKEN = "your_bot_token_here"
