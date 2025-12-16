@@ -146,7 +146,8 @@ git checkout -b fix/your-bug-fix
 
 ```bash
 # Deploy to your test Worker
-wrangler publish
+wrangler deploy
+# Or use 'wrangler publish' for older Wrangler versions
 
 # Test the endpoints
 curl https://your-test-worker.workers.dev/
@@ -237,7 +238,7 @@ Example:
 ```javascript
 /**
  * Send a message to Telegram
- * @param {number} chatId - The Telegram chat ID
+ * @param {number|string} chatId - The Telegram chat ID (can be very large, consider using string)
  * @param {string} text - The message text
  * @param {object} options - Optional parameters
  * @returns {Promise<object>} - The API response
@@ -300,7 +301,8 @@ wrangler tail
 ```bash
 # Solution: Force refresh and clear cache
 # Redeploy with verbose output
-wrangler publish --verbose
+wrangler deploy --verbose
+# Or use 'wrangler publish --verbose' for older Wrangler versions
 ```
 
 **Issue**: Webhook not receiving updates

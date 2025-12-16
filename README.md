@@ -50,9 +50,9 @@ Follow these steps carefully to get TrackDown-V2 up and running:
 5. **Choose a username** for your bot (must end with 'bot', e.g., "mytrackdown_bot")
 6. **Save your Bot Token** - BotFather will give you a token that looks like:
    ```
-   123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+   YOUR_BOT_TOKEN_HERE
    ```
-   ⚠️ **IMPORTANT**: Keep this token secret! It's like a password for your bot.
+   ⚠️ **IMPORTANT**: Keep this token secret! It's like a password for your bot. Never share it or commit it to version control.
 
 ---
 
@@ -104,7 +104,7 @@ This will open a browser window asking you to authorize Wrangler. Click "Allow" 
 
 ```toml
 [vars]
-TELEGRAM_BOT_TOKEN = "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"  # Replace with your actual bot token
+TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"  # Replace with your actual bot token from BotFather
 HOST_URL = "https://trackdown.your-subdomain.workers.dev"     # You'll update this after deployment
 ```
 
@@ -116,7 +116,8 @@ HOST_URL = "https://trackdown.your-subdomain.workers.dev"     # You'll update th
 
 ```bash
 # Deploy your worker
-wrangler publish
+wrangler deploy
+# Or use 'wrangler publish' for older Wrangler versions
 ```
 
 After successful deployment, you'll see output like:
@@ -137,14 +138,14 @@ Published trackdown (0.01 sec)
 
 ```toml
 [vars]
-TELEGRAM_BOT_TOKEN = "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
 HOST_URL = "https://trackdown.your-subdomain.workers.dev"  # Update this with your actual URL
 ```
 
 3. **Deploy again** to apply the changes:
 
 ```bash
-wrangler publish
+wrangler deploy
 ```
 
 ---
@@ -254,7 +255,7 @@ When someone clicks your tracking link, you'll receive messages in your Telegram
 ```
 ✅Victim Information 
 
-⚓ IP: 192.168.1.1 (https://ip-api.com/#192.168.1.1) | Time: 2024-01-15 10:30:45
+⚓ IP: 203.0.113.1 (https://ip-api.com/#203.0.113.1) | Time: 2024-01-15 10:30:45
 
 ⏳ Date In Victim's Device : Mon Jan 15 2024 10:30:45 GMT-0500
 
@@ -322,13 +323,13 @@ downlink: 10
 
 #### 3. Deployment fails?
 
-**Problem**: `wrangler publish` returns an error
+**Problem**: `wrangler deploy` returns an error
 
 **Solutions**:
 - Ensure you're logged in: `wrangler login`
 - Check that your Cloudflare account is active
 - Verify Node.js version: `node --version` (should be 16.13.0+)
-- Try deploying with verbose logging: `wrangler publish --verbose`
+- Try deploying with verbose logging: `wrangler deploy --verbose`
 
 #### 4. Bot shows "Invalid token" error?
 
@@ -458,7 +459,7 @@ To update your Worker with code changes:
 # Make your changes to worker.js or wrangler.toml
 
 # Deploy the updates
-wrangler publish
+wrangler deploy
 
 # Verify the changes
 wrangler tail
@@ -470,7 +471,7 @@ wrangler tail
 
 1. **Enable verbose logging**:
    ```bash
-   wrangler publish --verbose
+   wrangler deploy --verbose
    ```
 
 2. **Watch real-time logs**:
