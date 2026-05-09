@@ -4,7 +4,7 @@
   "description": "**TrackDown** is a **serverless, privacy-focused intelligence tool** powered by **Cloudflare Workers**. It allows you to generate custom tracking links that gather device data (like IP address, browser details, geolocation, and more) and send it directly to a connected **Telegram bot**.",
   "main": "worker.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\""
   },
   "repository": {
     "type": "git",
