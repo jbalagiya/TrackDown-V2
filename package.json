@@ -13,12 +13,13 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/jbalagiya/TrackDown-V2/issues"
   },
   "homepage": "https://github.com/jbalagiya/TrackDown-V2#readme",
   "devDependencies": {
+    "eslint": "^8.57.1",
     "wrangler": "^4.90.0"
   }
 }

@@ -399,7 +399,7 @@ async function handleRequest(request, env) {
     const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
 
     if (cloudflareMatch) {
-      const [_, uid, uri] = cloudflareMatch;
+      const [, uid, uri] = cloudflareMatch;
       const ip = getClientIP(request.headers);
       const time = new Date().toISOString().replace("T", " ").slice(0, 19);
       const decodedURL = decodeBase64(uri);
@@ -427,7 +427,7 @@ async function handleRequest(request, env) {
     }
 
     if (webviewMatch) {
-      const [_, uid, uri] = webviewMatch;
+      const [, uid, uri] = webviewMatch;
       const ip = getClientIP(request.headers);
       const time = new Date().toISOString().replace("T", " ").slice(0, 19);
       const decodedURL = decodeBase64(uri);
@@ -723,7 +723,7 @@ async function handleRequest(request, env) {
 }
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     return handleRequest(request, env);
   }
 };
