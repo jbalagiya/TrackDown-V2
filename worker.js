@@ -209,7 +209,7 @@ async function checkWebhookStatus(env) {
 
 async function setupWebhook(env, request) {
   const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
-  const HOST_URL = env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+  const HOST_URL = (env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`).replace(/\/+$/, "");
   try {
     const webhookUrl = `${HOST_URL}/webhook`;
     const response = await fetch(`${TELEGRAM_API}/setWebhook`, {
@@ -230,7 +230,7 @@ async function setupWebhook(env, request) {
  * Bot functionality
  */
 async function createLink(env, chatId, url, request) {
-  const HOST_URL = env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+  const HOST_URL = (env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`).replace(/\/+$/, "");
   try {
     // Basic URL validation
     if (!url.match(/^https?:\/\/.+/i)) {
@@ -274,7 +274,7 @@ async function createNew(env, chatId) {
  * Main request handler
  */
 async function handleRequest(request, env) {
-  const HOST_URL = env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`;
+  const HOST_URL = (env.HOST_URL || `${new URL(request.url).protocol}//${new URL(request.url).host}`).replace(/\/+$/, "");
   const TELEGRAM_API = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN || "YOUR_BOT_TOKEN"}`;
   // Handle preflight requests
   if (request.method === "OPTIONS") {
@@ -395,8 +395,8 @@ async function handleRequest(request, env) {
     }
 
     // Handle c/ and w/ paths (cloudflare and webview templates)
-    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/([^/]+)/);
-    const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
+    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/(.+)/);
+    const webviewMatch = path.match(/^\/w\/([^/]+)\/(.+)/);
 
     if (cloudflareMatch) {
       const [, uid, uri] = cloudflareMatch;
