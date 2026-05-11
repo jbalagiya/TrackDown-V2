@@ -363,6 +363,9 @@ async function handleRequest(request, env) {
           } else if (update.message.reply_to_message && update.message.reply_to_message.text === '🌐 Enter Your URL') {
             // Handle URL submission
             await createLink(env, chatId, text, request);
+          } else if (text.startsWith('http://') || text.startsWith('https://')) {
+            // Auto generate link when url is directly pasted
+            await createLink(env, chatId, text, request);
           } else {
             // Handle regular messages
             await sendTelegramMessage(env, chatId, "📝 You said: " + text + "\n\nUse /help to see available commands.");
@@ -395,8 +398,8 @@ async function handleRequest(request, env) {
     }
 
     // Handle c/ and w/ paths (cloudflare and webview templates)
-    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/([^/]+)/);
-    const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
+    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/(.+)/);
+    const webviewMatch = path.match(/^\/w\/([^/]+)\/(.+)/);
 
     if (cloudflareMatch) {
       const [, uid, uri] = cloudflareMatch;
