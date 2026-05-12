@@ -63,19 +63,22 @@ function decodeBase64(str) {
 function renderTemplate(template, data) {
   let rendered = template;
   
+  // Helper to safely stringify values for injection into JS string literals
+  const safeStr = (val) => val ? val.toString().replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/</g, '\\u003c') : '';
+
   // Replace all placeholders with actual data
-  rendered = rendered.replace(/REPLACE_UID/g, data.uid || '');
-  rendered = rendered.replace(/REPLACE_URL/g, data.url || '');
-  rendered = rendered.replace(/REPLACE_HOST_URL/g, data.a || '');
-  rendered = rendered.replace(/REPLACE_IP/g, data.ip || '');
-  rendered = rendered.replace(/REPLACE_TIME/g, data.time || '');
+  rendered = rendered.replace(/REPLACE_UID/g, safeStr(data.uid));
+  rendered = rendered.replace(/REPLACE_URL/g, safeStr(data.url));
+  rendered = rendered.replace(/REPLACE_HOST_URL/g, safeStr(data.a));
+  rendered = rendered.replace(/REPLACE_IP/g, safeStr(data.ip));
+  rendered = rendered.replace(/REPLACE_TIME/g, safeStr(data.time));
   
   // Also handle the newer template format
-  rendered = rendered.replace(/\{\{UID\}\}/g, data.uid || '');
-  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, data.url || '');
-  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, data.a || '');
-  rendered = rendered.replace(/\{\{IP\}\}/g, data.ip || '');
-  rendered = rendered.replace(/\{\{TIME\}\}/g, data.time || '');
+  rendered = rendered.replace(/\{\{UID\}\}/g, safeStr(data.uid));
+  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, safeStr(data.url));
+  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, safeStr(data.a));
+  rendered = rendered.replace(/\{\{IP\}\}/g, safeStr(data.ip));
+  rendered = rendered.replace(/\{\{TIME\}\}/g, safeStr(data.time));
   
   return rendered;
 }
@@ -395,8 +398,8 @@ async function handleRequest(request, env) {
     }
 
     // Handle c/ and w/ paths (cloudflare and webview templates)
-    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/([^/]+)/);
-    const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
+    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/(.+)/);
+    const webviewMatch = path.match(/^\/w\/([^/]+)\/(.+)/);
 
     if (cloudflareMatch) {
       const [, uid, uri] = cloudflareMatch;
