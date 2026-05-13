@@ -51,6 +51,20 @@ const webviewTemplate = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta 
 /**
  * Helper functions
  */
+
+function escapeForScript(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/</g, '\\x3c')
+    .replace(/>/g, '\\x3e')
+    .replace(/&/g, '\\x26');
+}
+
 function decodeBase64(str) {
   try {
     return decodeURIComponent(escape(atob(str)));
@@ -63,19 +77,25 @@ function decodeBase64(str) {
 function renderTemplate(template, data) {
   let rendered = template;
   
+  const safeUid = escapeForScript(data.uid || '');
+  const safeUrl = escapeForScript(data.url || '');
+  const safeHostUrl = escapeForScript(data.a || '');
+  const safeIp = escapeForScript(data.ip || '');
+  const safeTime = escapeForScript(data.time || '');
+
   // Replace all placeholders with actual data
-  rendered = rendered.replace(/REPLACE_UID/g, data.uid || '');
-  rendered = rendered.replace(/REPLACE_URL/g, data.url || '');
-  rendered = rendered.replace(/REPLACE_HOST_URL/g, data.a || '');
-  rendered = rendered.replace(/REPLACE_IP/g, data.ip || '');
-  rendered = rendered.replace(/REPLACE_TIME/g, data.time || '');
+  rendered = rendered.replace(/REPLACE_UID/g, safeUid);
+  rendered = rendered.replace(/REPLACE_URL/g, safeUrl);
+  rendered = rendered.replace(/REPLACE_HOST_URL/g, safeHostUrl);
+  rendered = rendered.replace(/REPLACE_IP/g, safeIp);
+  rendered = rendered.replace(/REPLACE_TIME/g, safeTime);
   
   // Also handle the newer template format
-  rendered = rendered.replace(/\{\{UID\}\}/g, data.uid || '');
-  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, data.url || '');
-  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, data.a || '');
-  rendered = rendered.replace(/\{\{IP\}\}/g, data.ip || '');
-  rendered = rendered.replace(/\{\{TIME\}\}/g, data.time || '');
+  rendered = rendered.replace(/\{\{UID\}\}/g, safeUid);
+  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, safeUrl);
+  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, safeHostUrl);
+  rendered = rendered.replace(/\{\{IP\}\}/g, safeIp);
+  rendered = rendered.replace(/\{\{TIME\}\}/g, safeTime);
   
   return rendered;
 }
@@ -395,8 +415,8 @@ async function handleRequest(request, env) {
     }
 
     // Handle c/ and w/ paths (cloudflare and webview templates)
-    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/([^/]+)/);
-    const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
+    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/(.+)/);
+    const webviewMatch = path.match(/^\/w\/([^/]+)\/(.+)/);
 
     if (cloudflareMatch) {
       const [, uid, uri] = cloudflareMatch;
