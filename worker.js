@@ -60,22 +60,40 @@ function decodeBase64(str) {
   }
 }
 
+function escapeForScript(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e');
+}
+
 function renderTemplate(template, data) {
   let rendered = template;
   
-  // Replace all placeholders with actual data
-  rendered = rendered.replace(/REPLACE_UID/g, data.uid || '');
-  rendered = rendered.replace(/REPLACE_URL/g, data.url || '');
-  rendered = rendered.replace(/REPLACE_HOST_URL/g, data.a || '');
-  rendered = rendered.replace(/REPLACE_IP/g, data.ip || '');
-  rendered = rendered.replace(/REPLACE_TIME/g, data.time || '');
+  const uid = escapeForScript(data.uid || '');
+  const url = escapeForScript(data.url || '');
+  const hostUrl = escapeForScript(data.a || '');
+  const ip = escapeForScript(data.ip || '');
+  const time = escapeForScript(data.time || '');
+
+  // Replace all placeholders with actual data using callback to prevent $& injection
+  rendered = rendered.replace(/REPLACE_UID/g, () => uid);
+  rendered = rendered.replace(/REPLACE_URL/g, () => url);
+  rendered = rendered.replace(/REPLACE_HOST_URL/g, () => hostUrl);
+  rendered = rendered.replace(/REPLACE_IP/g, () => ip);
+  rendered = rendered.replace(/REPLACE_TIME/g, () => time);
   
   // Also handle the newer template format
-  rendered = rendered.replace(/\{\{UID\}\}/g, data.uid || '');
-  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, data.url || '');
-  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, data.a || '');
-  rendered = rendered.replace(/\{\{IP\}\}/g, data.ip || '');
-  rendered = rendered.replace(/\{\{TIME\}\}/g, data.time || '');
+  rendered = rendered.replace(/\{\{UID\}\}/g, () => uid);
+  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, () => url);
+  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, () => hostUrl);
+  rendered = rendered.replace(/\{\{IP\}\}/g, () => ip);
+  rendered = rendered.replace(/\{\{TIME\}\}/g, () => time);
   
   return rendered;
 }
@@ -395,8 +413,8 @@ async function handleRequest(request, env) {
     }
 
     // Handle c/ and w/ paths (cloudflare and webview templates)
-    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/([^/]+)/);
-    const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
+    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/(.+)/);
+    const webviewMatch = path.match(/^\/w\/([^/]+)\/(.+)/);
 
     if (cloudflareMatch) {
       const [, uid, uri] = cloudflareMatch;
