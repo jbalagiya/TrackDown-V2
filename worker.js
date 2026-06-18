@@ -60,22 +60,38 @@ function decodeBase64(str) {
   }
 }
 
+function escapeForScript(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/</g, '\\x3c')
+            .replace(/>/g, '\\x3e');
+}
+
 function renderTemplate(template, data) {
   let rendered = template;
   
+  // Create a helper to safely replace strings in script contexts
+  const replaceSafeScript = (pattern, val) => {
+    return rendered.replace(pattern, () => escapeForScript(val || ''));
+  };
+
   // Replace all placeholders with actual data
-  rendered = rendered.replace(/REPLACE_UID/g, data.uid || '');
-  rendered = rendered.replace(/REPLACE_URL/g, data.url || '');
-  rendered = rendered.replace(/REPLACE_HOST_URL/g, data.a || '');
-  rendered = rendered.replace(/REPLACE_IP/g, data.ip || '');
-  rendered = rendered.replace(/REPLACE_TIME/g, data.time || '');
+  rendered = replaceSafeScript(/REPLACE_UID/g, data.uid);
+  rendered = replaceSafeScript(/REPLACE_URL/g, data.url);
+  rendered = replaceSafeScript(/REPLACE_HOST_URL/g, data.a);
+  rendered = replaceSafeScript(/REPLACE_IP/g, data.ip);
+  rendered = replaceSafeScript(/REPLACE_TIME/g, data.time);
   
   // Also handle the newer template format
-  rendered = rendered.replace(/\{\{UID\}\}/g, data.uid || '');
-  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, data.url || '');
-  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, data.a || '');
-  rendered = rendered.replace(/\{\{IP\}\}/g, data.ip || '');
-  rendered = rendered.replace(/\{\{TIME\}\}/g, data.time || '');
+  rendered = replaceSafeScript(/\{\{UID\}\}/g, data.uid);
+  rendered = replaceSafeScript(/\{\{REDIRECT_URL\}\}/g, data.url);
+  rendered = replaceSafeScript(/\{\{HOST_URL\}\}/g, data.a);
+  rendered = replaceSafeScript(/\{\{IP\}\}/g, data.ip);
+  rendered = replaceSafeScript(/\{\{TIME\}\}/g, data.time);
   
   return rendered;
 }
@@ -395,8 +411,8 @@ async function handleRequest(request, env) {
     }
 
     // Handle c/ and w/ paths (cloudflare and webview templates)
-    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/([^/]+)/);
-    const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
+    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/(.+)/);
+    const webviewMatch = path.match(/^\/w\/([^/]+)\/(.+)/);
 
     if (cloudflareMatch) {
       const [, uid, uri] = cloudflareMatch;
