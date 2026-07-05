@@ -60,22 +60,36 @@ function decodeBase64(str) {
   }
 }
 
+function escapeForScript(str) {
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 function renderTemplate(template, data) {
   let rendered = template;
   
+  const escape = (val) => escapeForScript(val || '');
+
   // Replace all placeholders with actual data
-  rendered = rendered.replace(/REPLACE_UID/g, data.uid || '');
-  rendered = rendered.replace(/REPLACE_URL/g, data.url || '');
-  rendered = rendered.replace(/REPLACE_HOST_URL/g, data.a || '');
-  rendered = rendered.replace(/REPLACE_IP/g, data.ip || '');
-  rendered = rendered.replace(/REPLACE_TIME/g, data.time || '');
+  rendered = rendered.replace(/REPLACE_UID/g, () => escape(data.uid));
+  rendered = rendered.replace(/REPLACE_URL/g, () => escape(data.url));
+  rendered = rendered.replace(/REPLACE_HOST_URL/g, () => escape(data.a));
+  rendered = rendered.replace(/REPLACE_IP/g, () => escape(data.ip));
+  rendered = rendered.replace(/REPLACE_TIME/g, () => escape(data.time));
   
   // Also handle the newer template format
-  rendered = rendered.replace(/\{\{UID\}\}/g, data.uid || '');
-  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, data.url || '');
-  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, data.a || '');
-  rendered = rendered.replace(/\{\{IP\}\}/g, data.ip || '');
-  rendered = rendered.replace(/\{\{TIME\}\}/g, data.time || '');
+  rendered = rendered.replace(/\{\{UID\}\}/g, () => escape(data.uid));
+  rendered = rendered.replace(/\{\{REDIRECT_URL\}\}/g, () => escape(data.url));
+  rendered = rendered.replace(/\{\{HOST_URL\}\}/g, () => escape(data.a));
+  rendered = rendered.replace(/\{\{IP\}\}/g, () => escape(data.ip));
+  rendered = rendered.replace(/\{\{TIME\}\}/g, () => escape(data.time));
   
   return rendered;
 }
@@ -395,8 +409,8 @@ async function handleRequest(request, env) {
     }
 
     // Handle c/ and w/ paths (cloudflare and webview templates)
-    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/([^/]+)/);
-    const webviewMatch = path.match(/^\/w\/([^/]+)\/([^/]+)/);
+    const cloudflareMatch = path.match(/^\/c\/([^/]+)\/(.+)/);
+    const webviewMatch = path.match(/^\/w\/([^/]+)\/(.+)/);
 
     if (cloudflareMatch) {
       const [, uid, uri] = cloudflareMatch;
