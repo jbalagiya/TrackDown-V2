@@ -40,7 +40,7 @@
 ### 2. Deploy Cloudflare Worker
 
 ```bash
-git clone [https://github.com/your-username/trackdown](https://github.com/jbalagiya/TrackDown-V2.git
+git clone https://github.com/jbalagiya/TrackDown-V2.git
 cd TrackDown-V2
 ```
 
@@ -55,7 +55,7 @@ HOST_URL = "https://trackdown.your-subdomain.workers.dev"
 Then:
 
 ```bash
-wrangler publish
+npx wrangler deploy
 ```
 
 ---
