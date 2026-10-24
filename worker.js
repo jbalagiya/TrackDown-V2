@@ -51,9 +51,23 @@ const webviewTemplate = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta 
 /**
  * Helper functions
  */
+function encodeBase64(str) {
+  const uint8Array = new TextEncoder().encode(str);
+  let binaryString = '';
+  for (let i = 0; i < uint8Array.byteLength; i++) {
+    binaryString += String.fromCharCode(uint8Array[i]);
+  }
+  return btoa(binaryString);
+}
+
 function decodeBase64(str) {
   try {
-    return decodeURIComponent(escape(atob(str)));
+    const binaryString = atob(str);
+    const uint8Array = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      uint8Array[i] = binaryString.charCodeAt(i);
+    }
+    return new TextDecoder().decode(uint8Array);
   } catch (e) {
     console.error("Base64 decoding failed:", e);
     return null;
@@ -254,7 +268,7 @@ async function createLink(env, chatId, url, request) {
     }
     
     const uid = chatId.toString(36);
-    const encodedUrl = btoa(unescape(encodeURIComponent(url)));
+    const encodedUrl = encodeBase64(url);
     
     const cUrl = `${HOST_URL}/c/${uid}/${encodedUrl}`;
     const wUrl = `${HOST_URL}/w/${uid}/${encodedUrl}`;
