@@ -53,7 +53,12 @@ const webviewTemplate = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta 
  */
 function decodeBase64(str) {
   try {
-    return decodeURIComponent(escape(atob(str)));
+    const binary = atob(str);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
   } catch (e) {
     console.error("Base64 decoding failed:", e);
     return null;
@@ -112,7 +117,6 @@ async function sendTelegramMessage(env, chatId, text, options = {}) {
       body: JSON.stringify({
         chat_id: chatId,
         text: text,
-        parse_mode: 'HTML',
         ...options
       })
     });
@@ -254,7 +258,12 @@ async function createLink(env, chatId, url, request) {
     }
     
     const uid = chatId.toString(36);
-    const encodedUrl = btoa(unescape(encodeURIComponent(url)));
+    const utf8Bytes = new TextEncoder().encode(url);
+    let binaryString = '';
+    for (let i = 0; i < utf8Bytes.byteLength; i++) {
+        binaryString += String.fromCharCode(utf8Bytes[i]);
+    }
+    const encodedUrl = btoa(binaryString);
     
     const cUrl = `${HOST_URL}/c/${uid}/${encodedUrl}`;
     const wUrl = `${HOST_URL}/w/${uid}/${encodedUrl}`;
